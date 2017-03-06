@@ -4,9 +4,13 @@ VM_bridge_Name = 'br0'
 Mirror_bridge = 'br1'
 Mirror_vlan = 4093
 UID_PREFIX_BIT = 10
+VM_PORT_PREFIX = 'tap'
+USER_VLAN = 10
 # ip_lib.py
 L3_NAMESPACE_PREFIX = 'l3_ns-'
 LOOPBACK_DEVNAME = 'lo'
+L3_VM_PORT_PREFIX = 'l3-vm'
+L3_STU_PORT_PREFIX = 'l3-st'
 VM_BRIDGE_PORT_PREFIX = 'qvb-'
 VM_OVS_PORT_PREFIX = 'qvo-'
 # ovs_lib.py

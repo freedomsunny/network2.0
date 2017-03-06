@@ -13,7 +13,8 @@ from config import *
 #             (max_chain_name_length - len('-POSTROUTING') == 16)
 def get_binary_name():
     """Grab the name of the binary we're running in."""
-    return os.path.basename(inspect.stack()[-1][1])[:16]
+    # return os.path.basename(inspect.stack()[-1][1])[:16]
+    return "iptables_firewall.py"
 
 
 binary_name = get_binary_name()
@@ -65,12 +66,11 @@ class IptablesTable(object):
 
 
 class IptablesManager(object):
-    def __init__(self, chain_name=None, table=None, namespace=None,
-                 suffix=None, wrap=True, state_less=False):
+    def __init__(self, chain_uid=None, table=None, namespace=None,
+                 wrap=True, state_less=False):
         self.execute = utils.exec_cmd
-        self.chain_name = chain_name
+        self.chain_uid = chain_uid
         self.namespace = namespace
-        self.suffix = suffix if not suffix else str(suffix).strip()
         self.wrap = wrap
         self.state_less = state_less
         self.table = table
@@ -85,11 +85,11 @@ class IptablesManager(object):
             self.remove_rules = self.ipv4[table].remove_rules
 
     def _get_chain_name(self):
-        chain_name = get_chain_name(self.chain_name)
-        if self.wrap and self.suffix:
-            return self.wrap_name + '-' + self.suffix
-        elif self.wrap:
+        chain_name = get_chain_name(self.chain_uid)
+        if self.wrap:
             return self.wrap_name + '-' + chain_name
+
+        return self.wrap_name
 
     def add_chain(self):
         name = self._get_chain_name()
@@ -105,7 +105,7 @@ class IptablesManager(object):
 
     # defer_apply 是否延迟应用规则
     def add_rule(self, rule, table=None, chain_str=None, rule_list=None, wrap=True, defer_apply=False):
-        chain_name = (self._get_chain_name() if self.chain_name else chain_str)
+        chain_name = (self._get_chain_name() if self.chain_uid else chain_str)
         if '$' in rule:
             rule = ' '.join(
                 self._wrap_target_chain(e, wrap) for e in rule.split(' '))

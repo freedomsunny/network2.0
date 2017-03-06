@@ -41,7 +41,7 @@ class IPDevice(object):
 
 
 class IPWrapper(object):
-    def __init__(self, name, namespace=None):
+    def __init__(self, name=None, namespace=None):
         self.name = name
         self.namespace = namespace
         self.netns = IpNetnsCommand(self.name, self.namespace)
@@ -128,16 +128,16 @@ class IpLinkCommand(object):
         self.namespace = namespace
 
     # change a port status to up
-    def set_port_up(self):
-        _execute('', self.COMMAND, ('%s' % self.name, 'up'), self.namespace)
+    def set_port_up(self, port):
+        _execute('', self.COMMAND, ('%s' % port, 'up'), self.namespace)
 
     # change a port status to down
     def set_port_down(self):
         _execute('', self.COMMAND, ('%s' % self.name, 'down'), self.namespace)
 
     # add a port to a namespace
-    def set_netns(self):
-        _execute('', self.COMMAND, ('%s' % self.name,
+    def set_netns(self, name):
+        _execute('', self.COMMAND, ('%s' % name,
                                     'netns',
                                     '%s' % self.namespace,
                                     ))
@@ -155,12 +155,12 @@ class IpAddrCommand(object):
         self.namespace = namespace
 
     # 给接口添加IP地址
-    def add_ip(self, ip, mask):
+    def add_ip(self, name, ip, mask):
         _execute('', self.COMMAND,
                  ('add',
                   '%s/%d' % (ip, mask),
                   'dev',
-                  self.name),
+                  name),
                  self.namespace
                  )
 
@@ -221,16 +221,16 @@ class IpRouteCommand(object):
 
     # add a route
     # cidr like 5.5.5.0/24
-    def add_onlink_route(self, cidr):
-        _execute('', self.COMMAND, ('replace', cidr, 'dev', self.name, 'scope', 'link'), self.namespace)
+    def add_onlink_route(self, cidr, name):
+        _execute('', self.COMMAND, ('replace', cidr, 'dev', name, 'scope', 'link'), self.namespace)
 
     # delete a route
     # cidr like 5.5.5.0/24
-    def delete_onlink_route(self, cidr):
-        _execute('', self.COMMAND, ('del', cidr, 'dev', self.name, 'scope', 'link'), self.namespace)
+    def delete_onlink_route(self, cidr, name):
+        _execute('', self.COMMAND, ('del', cidr, 'dev', name, 'scope', 'link'), self.namespace)
 
     # get the gateway ip address
-    def get_gateway(self, scope=None, filters=None):
+    def get_gateway(self, name, scope=None, filters=None):
         if filters is None:
             filters = []
 
@@ -239,7 +239,7 @@ class IpRouteCommand(object):
         if scope:
             filters += ['scope', scope]
 
-        route_list_lines = _execute('', self.COMMAND, ('list', 'dev', self.name,), self.namespace).split('\n')
+        route_list_lines = _execute('', self.COMMAND, ('list', 'dev', name,), self.namespace).split('\n')
         default_route_line = next((x.strip() for x in
                                    route_list_lines if
                                    x.strip().startswith('default')), None)
@@ -257,14 +257,14 @@ class IpRouteCommand(object):
     # cidr: destination network like 5.5.5.0/24
     # ip: next hop ip address like 1.1.1.1
     # table : ip route table
-    def add_route(self, cidr, ip, table=None):
-        args = ['replace', cidr, 'via', ip, 'dev', self.name]
+    def add_route(self, cidr, ip, name, table=None):
+        args = ['replace', cidr, 'via', ip, 'dev', name]
         if table:
             args += ['table', table]
         _execute('', self.COMMAND, args, self.namespace)
 
-    def delete_route(self, cidr, ip, table=None):
-        args = ['del', cidr, 'via', ip, 'dev', self.name]
+    def delete_route(self, cidr, ip, name, table=None):
+        args = ['del', cidr, 'via', ip, 'dev', name]
         if table:
             args += ['table', table]
         _execute('', self.COMMAND, args, self.namespace)
@@ -287,7 +287,7 @@ class IpNetnsCommand(object):
 
     # 检查命名空间是否存在
     def exists(self, name):
-        output = _execute('o', self.COMMAND, ('list',),)
+        output = _execute('o', self.COMMAND, ('list',), )
 
         for line in output.split('\n'):
             if name == line.strip():

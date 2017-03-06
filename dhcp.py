@@ -7,14 +7,15 @@ from IPy import IP
 from LogException import *
 from config import *
 
+
 # uid :a port's uid
 # net_uid :a network uid
 class Dnsmasq_base(object):
-    def __init__(self, ip, mask, mac, uid, net_uid, namespace=True):
+    def __init__(self, ip=None, mask=None, mac=None,
+                 net_uid=None, namespace=None):
         self.ip = ip
         self.mac = mac
         self.mask = mask
-        self.uid = uid
         self.namespace = namespace
         self.net_uid = net_uid
 
@@ -41,8 +42,7 @@ class Dnsmasq_base(object):
             '--dhcp-option=3,%s' % self._gateway,
             '--dhcp-no-override',
             '--dhcp-leasefile=%s' % self._leases_file,
-            ]
-        self.write_host_info()
+        ]
         return self.Dnsmsq_cmd(cmd)
 
     def kill_process(self):
@@ -87,8 +87,8 @@ class Dnsmasq_base(object):
             LogExceptionHelp.logException(msg)
             return False
 
-    def write_host_info(self):
-        if self.ip and self.mac:
+    def write_host_info(self, ip, mac):
+        if ip and mac:
             try:
                 with open(self._host, 'a+') as f:
                     f.write("%s,%s\n" % (self.mac, self.ip,))
@@ -100,12 +100,12 @@ class Dnsmasq_base(object):
 
     @property
     def _mkdir_full_path(self):
-        if not self.uid:
-            msg = "_mkdir_full_path,no uid check uid"
+        if not self.net_uid:
+            msg = "_mkdir_full_path,no net_uid check net_uid"
             print msg
             LogExceptionHelp.logException(msg)
             return False
-        full_file_path = DHCP_CONFIG_FILE_PREFIX + self._uid
+        full_file_path = DHCP_CONFIG_FILE_PREFIX + self._network_uid
         if os.path.isdir(full_file_path):
             return full_file_path + os.sep
         else:
@@ -119,20 +119,20 @@ class Dnsmasq_base(object):
 
     @property
     def _host(self):
-        if not self.uid:
-            msg = "_host,dhcp no uid. check uid"
+        if not self.net_uid:
+            msg = "_host,dhcp no net_uid. check net_uid"
             print msg
             LogExceptionHelp.logException(msg)
         return self._mkdir_full_path + DHCP_HOST
 
     @property
     def _vm_dhcp_path(self):
-        if not self.uid:
-            msg = "_vm_dhcp_path, dhcp no uid. check uid"
+        if not self.net_uid:
+            msg = "_vm_dhcp_path, dhcp no net_uid. check net_uid"
             print msg
             LogExceptionHelp.logException(msg)
             return False
-        return DHCP_CONFIG_FILE_PREFIX + self._uid
+        return DHCP_CONFIG_FILE_PREFIX + self._network_uid
 
     @property
     def _pid(self):
@@ -158,7 +158,7 @@ class Dnsmasq_base(object):
 
     @property
     def _interface(self):
-        return NS_DHCP_INTERFACE_PREFIX + self._uid
+        return NS_DHCP_INTERFACE_PREFIX + self._network_uid
 
     @property
     def _gateway(self):
@@ -175,8 +175,8 @@ class Dnsmasq_base(object):
 
     @property
     def _pid_file(self):
-        if not self.uid:
-            msg = "_pid_file,dhcp no uid. check uid"
+        if not self.net_uid:
+            msg = "_pid_file,dhcp no net_uid. check net_uid"
             print msg
             LogExceptionHelp.logException(msg)
         return self._mkdir_full_path + DHCP_PID_FNAME
@@ -186,15 +186,6 @@ class Dnsmasq_base(object):
         return self._mkdir_full_path + DHCP_LEASES_FNAME
 
     @property
-    def _uid(self):
-        if not self.uid:
-            msg = "_uid,Error: uid is none"
-            print msg
-            LogExceptionHelp.logException(msg)
-            return
-        return self.uid[:UID_PREFIX_BIT]
-
-    @property
     def _network_uid(self):
         if not self.net_uid:
             msg = "_network_uid: network uid is none"
@@ -202,3 +193,39 @@ class Dnsmasq_base(object):
             LogExceptionHelp.logException(msg)
             return
         return self.net_uid[:UID_PREFIX_BIT]
+
+
+class ip_expr(object):
+    def __init__(self, ip, mask):
+        self.ip = ip
+        self.mask = mask
+        self.network = self.get_network()
+        self.broadcast = self.get_broadcast()
+        self.net_int = self.get_net_int()
+        self.dhcp_listen_addr = self.get_dhcp_listen_addr()
+        self.available_ips = self.get_available_ips()
+        self.gateway = self.get_gateway()
+
+    def get_network(self):
+        network = str(IP(self.ip).make_net(self.mask)).split('/')[0]
+        return network
+
+    def get_broadcast(self):
+        broadcast = IP('{}/{}'.format(self.network, self.mask)).broadcast()
+        return broadcast
+
+    def get_net_int(self):
+        net_int = socket.ntohl(struct.unpack("I", socket.inet_aton(self.network))[0])
+        return net_int
+
+    def get_dhcp_listen_addr(self):
+        dhcp_listen_addr = socket.inet_ntoa(struct.pack('I', socket.htonl(self.net_int + 1)))
+        return dhcp_listen_addr
+
+    def get_available_ips(self):
+        available_ips = 2 ** (32 - self.mask) - 2
+        return available_ips
+
+    def get_gateway(self):
+        gateway = socket.inet_ntoa(struct.pack('I', socket.htonl(self.net_int + self.available_ips)))
+        return gateway

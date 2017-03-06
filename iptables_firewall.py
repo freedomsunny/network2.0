@@ -19,18 +19,17 @@ class IptablesFirewallDriver(object):
     IPTABLES_DIRECTION = {INGRESS_DIRECTION: 'physdev-out',
                           EGRESS_DIRECTION: 'physdev-in'}
 
-    def __init__(self, uid=None, chain_name=None,
-                 namespace=None, table=None, wrap=True):
+    def __init__(self, chain_uid=None, namespace=None,
+                 table=None, wrap=True):
 
         self.namespace = namespace
         self.wrap = wrap
-        self.uid = uid
+        self.chain_uid = chain_uid
         self.table = table
-        self.uid_prefix = str(uid).strip()[:UID_PREFIX_BIT]
-        self.chain_name = chain_name
+        self.uid_prefix = str(chain_uid).strip()[:UID_PREFIX_BIT]
         self.port_name = VM_INTERFACE_PREFIX + self.uid_prefix
-        self.ipset_manager = IpsetManager(self.uid, self.namespace)
-        self.ipset_name = get_ipset_chain_name(self.uid)
+        self.ipset_manager = IpsetManager(self.chain_uid, self.namespace)
+        self.ipset_name = get_ipset_chain_name(self.chain_uid)
         self.chain_suffix = {INGRESS_DIRECTION: 'i%s' % self.uid_prefix,
                              EGRESS_DIRECTION: 'o%s' % self.uid_prefix,
                              }
@@ -69,11 +68,18 @@ class IptablesFirewallDriver(object):
             # add rule to wrap chain
             self._add_chain_rule(direction)
 
+    # remove port chain
+    def remove_port_chain(self):
+        # remove chain about vm port
+        for direction in sorted(DIRECTION_IP_PREFIX):
+            chain_name = self.chain_suffix[direction]
+            self.delete_chain(chain_name)
+
     # direction = str
     # direction: ingress/egress
     # 实例化IptablesFirewallDriver类时时chain_name='FORWARD'/INPUT/OUTPUT
     def _add_chain_rule(self, direction):
-        iptables = IptablesManager(self.chain_name, self.table)
+        iptables = IptablesManager(chain_uid='FORWARD', table=self.table)
         device = self.port_name
         jump_rule = '-m physdev --%s %s --physdev-is-bridged ' \
                     '-j $%s' % (self.IPTABLES_DIRECTION[direction],
@@ -93,9 +99,8 @@ class IptablesFirewallDriver(object):
     # direction: ingress/egress  (str)
     def init_ipset_rule(self, action, direction):
         chain_name = self.chain_suffix[direction]
-        iptables = IptablesManager(chain_name=chain_name,
-                                   table=self.table, namespace=self.namespace,
-                                   wrap=True)
+        iptables = IptablesManager(chain_uid=chain_name, table=self.table,
+                                   namespace=self.namespace, wrap=True)
         direction = IPSET_DIRECTION[direction]
         self.ipset_manager.create_ipset_chain(self.ipset_name)
         args = ['-m set',
@@ -105,7 +110,7 @@ class IptablesFirewallDriver(object):
                 '-j %s' % action
                 ]
         rule = ' '.join(args)
-        iptables.add_rule(rule, self.table, self.chain_name)
+        iptables.add_rule(rule, self.table, self.chain_uid)
 
     # ips: a list
     def add_ipset_rule(self, ips):
@@ -125,7 +130,7 @@ class IptablesFirewallDriver(object):
     def add_iptables_rule(self, rule, direction, wrap=True):
         chain_name = self.chain_suffix[direction]
         iptables = IptablesManager(chain_name, self.table, self.namespace, wrap=wrap)
-        iptables.add_rule(rule, self.table, self.chain_name)
+        iptables.add_rule(rule, self.table, self.chain_uid)
 
     # direction = 'ingress'/'egress'
     def delete_rule(self, rule, direction, wrap=True):

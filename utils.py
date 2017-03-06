@@ -13,7 +13,12 @@ def execute(cmd, return_stdout=True):
         print "Runing command: {}".format(cmd)
         exec_cmd = '  '.join(cmd)
         ret = commands.getstatusoutput(exec_cmd)
-        if return_stdout:
+        if ret[0]:
+            msg = "Runing command [{}] error. msg: [{}]".format(exec_cmd, ret[1])
+            LogExceptionHelp.logException(msg)
+            print(msg)
+        else:
+            print "Commands completed with success"
             return ret
 
 
